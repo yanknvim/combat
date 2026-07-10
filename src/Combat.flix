@@ -1,4 +1,4 @@
-mod Parser {
+mod Combat {
     pub type alias Parser[a] = String -> (a, String) \ ParseEff
 
     pub enum ParseError with Eq, Order, ToString {
@@ -35,7 +35,7 @@ mod Parser {
         }
 
     mod Char {
-        use Parser.{Parser, ParseError, ParseEff}
+        use Combat.{Parser, ParseError, ParseEff}
 
         pub def anyChar(): Parser[Char] = input -> {
             if (String.isEmpty(input)) {
@@ -62,7 +62,7 @@ mod Parser {
     }
 
     mod String {
-        use Parser.{Parser, ParseError, ParseEff}
+        use Combat.{Parser, ParseError, ParseEff}
 
         pub def string(s: String): Parser[String] = input -> {
             if (String.isEmpty(input)) {
@@ -84,7 +84,7 @@ mod Parser {
     pub def pure(v: a): Parser[a] = input -> eidentity((v, input))
 
     mod Combinator {
-        use Parser.{Parser, ParseError, ParseEff}
+        use Combat.{Parser, ParseError, ParseEff}
 
         pub def choice(p1: Parser[a], p2: Parser[a]): Parser[a] = input -> {
             run {

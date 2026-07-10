@@ -1,16 +1,16 @@
-use Parser.{ParseResult, ParseError}
-use Parser.Char
-use Parser.String
-use Parser.Combinator
+use Combat.{ParseResult, ParseError}
+use Combat.Char
+use Combat.String
+use Combat.Combinator
 
 @Test
 def testAnyCharOk(): Unit \ Assert =
-    let r = Parser.runParser(Char.anyChar(), "abc");
+    let r = Combat.runParser(Char.anyChar(), "abc");
     Assert.assertEq(expected = ParseResult.Success('a'), r)
 
 @Test
 def testAnyCharEmpty(): Unit \ Assert =
-    let r = Parser.runParser(Char.anyChar(), "");
+    let r = Combat.runParser(Char.anyChar(), "");
     match r {
         case ParseResult.Failure(_) => Assert.assertTrue(true)
         case ParseResult.Success(_)  => Assert.assertTrue(false)
@@ -19,7 +19,7 @@ def testAnyCharEmpty(): Unit \ Assert =
 @Test
 def testCharMismatch(): Unit \ Assert =
     // 'b' != 'a': recoverable raise -> Failure with UnexpectedChar
-    let r = Parser.runParser(Char.char('a'), "bc");
+    let r = Combat.runParser(Char.char('a'), "bc");
     match r {
         case ParseResult.Failure(s) =>
             Assert.assertTrue(Set.memberOf(ParseError.UnexpectedChar('a', 'b'), s))
@@ -28,39 +28,39 @@ def testCharMismatch(): Unit \ Assert =
 
 @Test
 def testStringOk(): Unit \ Assert =
-    let r = Parser.runParser(String.string("hello"), "hello world");
+    let r = Combat.runParser(String.string("hello"), "hello world");
     Assert.assertEq(expected = ParseResult.Success("hello"), r)
 
 @Test
 def testStringMismatch(): Unit \ Assert =
-    let r = Parser.runParser(String.string("foo"), "barbaz");
+    let r = Combat.runParser(String.string("foo"), "barbaz");
     match r {
         case ParseResult.Failure(s) =>
             Assert.assertTrue(Set.memberOf(ParseError.UnexpectedString("foo", "bar"), s))
         case ParseResult.Success(_)  => Assert.assertTrue(false)
     }
 
-// ── Parser.Combinator.choice tests ──────────────────────────────────────────
+// ── Combat.Combinator.choice tests ───────────────────────────────────────
 
 @Test
 def testChoiceFirstSucceeds(): Unit \ Assert =
     // p1 matches, return p1's result
     let p = Combinator.choice(Char.char('a'), Char.char('b'));
-    let r = Parser.runParser(p, "abc");
+    let r = Combat.runParser(p, "abc");
     Assert.assertEq(expected = ParseResult.Success('a'), r)
 
 @Test
 def testChoiceFallbackNonFatal(): Unit \ Assert =
     // p1 fails (non-fatal UnexpectedChar), falls back to p2 which succeeds
     let p = Combinator.choice(Char.char('a'), Char.char('b'));
-    let r = Parser.runParser(p, "bc");
+    let r = Combat.runParser(p, "bc");
     Assert.assertEq(expected = ParseResult.Success('b'), r)
 
 @Test
 def testChoiceFallbackFatal(): Unit \ Assert =
     // p1 fails (fatal EmptyString), falls back to p2 which also fails (fatal) → Failure
     let p = Combinator.choice(Char.anyChar(), Char.char('a'));
-    let r = Parser.runParser(p, "");
+    let r = Combat.runParser(p, "");
     match r {
         case ParseResult.Failure(_) => Assert.assertTrue(true)
         case ParseResult.Success(_)  => Assert.assertTrue(false)
@@ -71,7 +71,7 @@ def testChoiceBothRaise(): Unit \ Assert =
     // p1 raises (non-fatal), falls back to p2 which also raises (non-fatal)
     // p2's error propagates to runParser
     let p = Combinator.choice(Char.char('a'), Char.char('b'));
-    let r = Parser.runParser(p, "cd");
+    let r = Combat.runParser(p, "cd");
     match r {
         case ParseResult.Failure(s) =>
             Assert.assertTrue(Set.memberOf(ParseError.UnexpectedChar('b', 'c'), s))
@@ -82,30 +82,30 @@ def testChoiceBothRaise(): Unit \ Assert =
 def testChoiceStringFallback(): Unit \ Assert =
     // p1 fails (non-fatal), falls back to p2 which succeeds
     let p = Combinator.choice(String.string("foo"), String.string("bar"));
-    let r = Parser.runParser(p, "bar");
+    let r = Combat.runParser(p, "bar");
     Assert.assertEq(expected = ParseResult.Success("bar"), r)
 
-// ── Parser.Combinator.andThen tests ─────────────────────────────────────────
+// ── Combat.Combinator.andThen tests ────────────────────────────────────────
 
 @Test
 def testAndThenTwoChars(): Unit \ Assert =
     // both match => Success((a, b))
     let p = Combinator.andThen(Char.char('a'), Char.char('b'));
-    let r = Parser.runParser(p, "abc");
+    let r = Combat.runParser(p, "abc");
     Assert.assertEq(expected = ParseResult.Success(('a', 'b')), r)
 
 @Test
 def testAndThenStringAndChar(): Unit \ Assert =
     // string then char, both match
     let p = Combinator.andThen(String.string("hi"), Char.char('!'));
-    let r = Parser.runParser(p, "hi!");
+    let r = Combat.runParser(p, "hi!");
     Assert.assertEq(expected = ParseResult.Success(("hi", '!')), r)
 
 @Test
 def testAndThenP1Fatal(): Unit \ Assert =
     // p1 fatals on empty input => Failure
     let p = Combinator.andThen(Char.char('a'), Char.char('b'));
-    let r = Parser.runParser(p, "");
+    let r = Combat.runParser(p, "");
     match r {
         case ParseResult.Failure(_) => Assert.assertTrue(true)
         case ParseResult.Success(_)  => Assert.assertTrue(false)
@@ -115,7 +115,7 @@ def testAndThenP1Fatal(): Unit \ Assert =
 def testAndThenP2Fatal(): Unit \ Assert =
     // p1 succeeds, p2 fatals on empty rest => Failure
     let p = Combinator.andThen(Char.anyChar(), Char.char('b'));
-    let r = Parser.runParser(p, "x");
+    let r = Combat.runParser(p, "x");
     match r {
         case ParseResult.Failure(_) => Assert.assertTrue(true)
         case ParseResult.Success(_)  => Assert.assertTrue(false)
@@ -125,7 +125,7 @@ def testAndThenP2Fatal(): Unit \ Assert =
 def testAndThenBothNonFatal(): Unit \ Assert =
     // both raise non-fatally (wrong chars), both errors collected
     let p = Combinator.andThen(Char.char('a'), Char.char('b'));
-    let r = Parser.runParser(p, "cd");
+    let r = Combat.runParser(p, "cd");
     match r {
         case ParseResult.Failure(s) =>
             Assert.assertTrue(Set.memberOf(ParseError.UnexpectedChar('a', 'c'), s));
@@ -133,58 +133,58 @@ def testAndThenBothNonFatal(): Unit \ Assert =
         case ParseResult.Success(_)  => Assert.assertTrue(false)
     }
 
-// ── Parser.map tests ────────────────────────────────────────────────────────
+// ── Combat.map tests ──────────────────────────────────────────────────────
 
 @Test
 def testMapTransform(): Unit \ Assert =
-    let p = Parser.map(c -> c :: Nil, Char.char('a'));
-    let r = Parser.runParser(p, "abc");
+    let p = Combat.map(c -> c :: Nil, Char.char('a'));
+    let r = Combat.runParser(p, "abc");
     Assert.assertEq(expected = ParseResult.Success('a' :: Nil), r)
 
 @Test
 def testMapFailurePropagates(): Unit \ Assert =
-    let p = Parser.map(c -> c :: Nil, Char.char('z'));
-    let r = Parser.runParser(p, "abc");
+    let p = Combat.map(c -> c :: Nil, Char.char('z'));
+    let r = Combat.runParser(p, "abc");
     match r {
         case ParseResult.Failure(s) =>
             Assert.assertTrue(Set.memberOf(ParseError.UnexpectedChar('z', 'a'), s))
         case ParseResult.Success(_)  => Assert.assertTrue(false)
     }
 
-// ── Parser.pure tests ───────────────────────────────────────────────────────
+// ── Combat.pure tests ─────────────────────────────────────────────────────
 
 @Test
 def testPureAlwaysSucceeds(): Unit \ Assert =
-    let p = Parser.pure(42);
-    let r = Parser.runParser(p, "anything");
+    let p = Combat.pure(42);
+    let r = Combat.runParser(p, "anything");
     Assert.assertEq(expected = ParseResult.Success(42), r)
 
 @Test
 def testPureDoesNotConsume(): Unit \ Assert =
-    let p = Combinator.andThen(Parser.pure(1), Char.char('a'));
-    let r = Parser.runParser(p, "abc");
+    let p = Combinator.andThen(Combat.pure(1), Char.char('a'));
+    let r = Combat.runParser(p, "abc");
     Assert.assertEq(expected = ParseResult.Success((1, 'a')), r)
 
-// ── Parser.Combinator.many0 tests ──────────────────────────────────────────
+// ── Combat.Combinator.many0 tests ─────────────────────────────────────────
 
 @Test
 def testMany0ZeroMatches(): Unit \ Assert =
     // zero occurrences => pure(Nil), input untouched
     let p = Combinator.many0(Char.char('a'));
-    let r = Parser.runParser(p, "bbb");
+    let r = Combat.runParser(p, "bbb");
     Assert.assertEq(expected = ParseResult.Success(Nil), r)
 
 @Test
 def testMany0MultipleMatches(): Unit \ Assert =
     let p = Combinator.many0(Char.char('a'));
-    let r = Parser.runParser(p, "aaabbb");
+    let r = Combat.runParser(p, "aaabbb");
     Assert.assertEq(expected = ParseResult.Success('a' :: 'a' :: 'a' :: Nil), r)
 
 @Test
 def testMany0EmptyInput(): Unit \ Assert =
     // empty input => zero matches, pure(Nil), succeeds
     let p = Combinator.many0(Char.char('a'));
-    let r = Parser.runParser(p, "");
+    let r = Combat.runParser(p, "");
     Assert.assertEq(expected = ParseResult.Success(Nil), r)
 
 // ── Complex integration test ─────────────────────────────────────────────
@@ -196,14 +196,14 @@ def testComplexMany0StringChoice(): Unit \ Assert =
     let greeting = Combinator.choice(String.string("hi"), String.string("hello"));
     let greetings = Combinator.many0(greeting);
     let p = Combinator.andThen(greetings, Char.char('!'));
-    let r = Parser.runParser(p, "hihello!");
+    let r = Combat.runParser(p, "hihello!");
     Assert.assertEq(expected = ParseResult.Success(("hi" :: "hello" :: Nil, '!')), r)
 
 @Test
 def testAndThenP2NonFatal(): Unit \ Assert =
     // p1 succeeds, p2 raises non-fatally => Failure with p2's error
     let p = Combinator.andThen(Char.char('a'), Char.char('b'));
-    let r = Parser.runParser(p, "ac");
+    let r = Combat.runParser(p, "ac");
     match r {
         case ParseResult.Failure(s) =>
             Assert.assertTrue(Set.memberOf(ParseError.UnexpectedChar('b', 'c'), s))
