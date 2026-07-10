@@ -38,21 +38,24 @@ mod Parser {
         use Parser.{Parser, ParseError, ParseEff}
 
         pub def anyChar(): Parser[Char] = input -> {
-            let charList = String.toList(input);
-            match charList {
-                case Nil => ParseEff.raiseFatal(ParseError.EmptyString)
-                case head :: tail => (head, List.toString(tail))
+            if (String.isEmpty(input)) {
+                ParseEff.raiseFatal(ParseError.EmptyString)
+            } else {
+                let first = String.charAt(0, input);
+                (first, String.dropLeft(1, input))
             }
         }
 
         pub def char(c: Char): Parser[Char] = input -> {
-            let charList = String.toList(input);
-            match charList {
-                case Nil => ParseEff.raiseFatal(ParseError.EmptyString)
-                case head :: tail if head == c => (head, List.toString(tail))
-                case head :: tail => {
-                    ParseEff.raise(ParseError.UnexpectedChar(c, head));
-                    (head, List.toString(tail))
+            if (String.isEmpty(input)) {
+                ParseEff.raiseFatal(ParseError.EmptyString)
+            } else {
+                let first = String.charAt(0, input);
+                if (first == c) {
+                    (first, String.dropLeft(1, input))
+                } else {
+                    ParseEff.raise(ParseError.UnexpectedChar(c, first));
+                    (first, String.dropLeft(1, input))
                 }
             }
         }
@@ -73,6 +76,13 @@ mod Parser {
         }
     }
 
+    pub def map(f: a -> b \ {}, p: Parser[a]): Parser[b] = input -> {
+        let (r, rest) = p(input);
+        (f(r), rest)
+    }
+
+    pub def pure(v: a): Parser[a] = input -> eidentity((v, input))
+
     mod Combinator {
         use Parser.{Parser, ParseError, ParseEff}
 
@@ -91,5 +101,16 @@ mod Parser {
             let (r2, s2) = p2(s1);
             ((r1, r2), s2)
         }
+
+        pub def many0(p: Parser[a]): Parser[List[a]] = input -> eidentity(
+            run {
+                let (x, rest) = p(input);
+                let (xs, rest2) = many0(p)(rest);
+                (x :: xs, rest2)
+            } with handler ParseEff {
+                def raise(_err, _resume) = (Nil, input)
+                def raiseFatal(_err, _resume) = (Nil, input)
+            }
+        )
     }
 }

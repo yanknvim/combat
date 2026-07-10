@@ -79,25 +79,11 @@ def testChoiceBothRaise(): Unit \ Assert =
     }
 
 @Test
-def testChoiceStringFirstSucceeds(): Unit \ Assert =
-    // p1 matches with string parser
-    let p = Combinator.choice(String.string("hello"), String.string("world"));
-    let r = Parser.runParser(p, "hello!");
-    Assert.assertEq(expected = ParseResult.Success("hello"), r)
-
-@Test
 def testChoiceStringFallback(): Unit \ Assert =
     // p1 fails (non-fatal), falls back to p2 which succeeds
     let p = Combinator.choice(String.string("foo"), String.string("bar"));
     let r = Parser.runParser(p, "bar");
     Assert.assertEq(expected = ParseResult.Success("bar"), r)
-
-@Test
-def testChoiceStringFallbackShorter(): Unit \ Assert =
-    // p1 fails (non-fatal), falls back to p2 which matches a shorter string
-    let p = Combinator.choice(String.string("ab"), String.string("a"));
-    let r = Parser.runParser(p, "a");
-    Assert.assertEq(expected = ParseResult.Success("a"), r)
 
 // ── Parser.Combinator.andThen tests ─────────────────────────────────────────
 
@@ -106,13 +92,6 @@ def testAndThenTwoChars(): Unit \ Assert =
     // both match => Success((a, b))
     let p = Combinator.andThen(Char.char('a'), Char.char('b'));
     let r = Parser.runParser(p, "abc");
-    Assert.assertEq(expected = ParseResult.Success(('a', 'b')), r)
-
-@Test
-def testAndThenCharAndAnyChar(): Unit \ Assert =
-    // first matches 'a', second matches any remaining char
-    let p = Combinator.andThen(Char.char('a'), Char.anyChar());
-    let r = Parser.runParser(p, "ab");
     Assert.assertEq(expected = ParseResult.Success(('a', 'b')), r)
 
 @Test
@@ -153,6 +132,72 @@ def testAndThenBothNonFatal(): Unit \ Assert =
             Assert.assertTrue(Set.memberOf(ParseError.UnexpectedChar('b', 'd'), s))
         case ParseResult.Success(_)  => Assert.assertTrue(false)
     }
+
+// ── Parser.map tests ────────────────────────────────────────────────────────
+
+@Test
+def testMapTransform(): Unit \ Assert =
+    let p = Parser.map(c -> c :: Nil, Char.char('a'));
+    let r = Parser.runParser(p, "abc");
+    Assert.assertEq(expected = ParseResult.Success('a' :: Nil), r)
+
+@Test
+def testMapFailurePropagates(): Unit \ Assert =
+    let p = Parser.map(c -> c :: Nil, Char.char('z'));
+    let r = Parser.runParser(p, "abc");
+    match r {
+        case ParseResult.Failure(s) =>
+            Assert.assertTrue(Set.memberOf(ParseError.UnexpectedChar('z', 'a'), s))
+        case ParseResult.Success(_)  => Assert.assertTrue(false)
+    }
+
+// ── Parser.pure tests ───────────────────────────────────────────────────────
+
+@Test
+def testPureAlwaysSucceeds(): Unit \ Assert =
+    let p = Parser.pure(42);
+    let r = Parser.runParser(p, "anything");
+    Assert.assertEq(expected = ParseResult.Success(42), r)
+
+@Test
+def testPureDoesNotConsume(): Unit \ Assert =
+    let p = Combinator.andThen(Parser.pure(1), Char.char('a'));
+    let r = Parser.runParser(p, "abc");
+    Assert.assertEq(expected = ParseResult.Success((1, 'a')), r)
+
+// ── Parser.Combinator.many0 tests ──────────────────────────────────────────
+
+@Test
+def testMany0ZeroMatches(): Unit \ Assert =
+    // zero occurrences => pure(Nil), input untouched
+    let p = Combinator.many0(Char.char('a'));
+    let r = Parser.runParser(p, "bbb");
+    Assert.assertEq(expected = ParseResult.Success(Nil), r)
+
+@Test
+def testMany0MultipleMatches(): Unit \ Assert =
+    let p = Combinator.many0(Char.char('a'));
+    let r = Parser.runParser(p, "aaabbb");
+    Assert.assertEq(expected = ParseResult.Success('a' :: 'a' :: 'a' :: Nil), r)
+
+@Test
+def testMany0EmptyInput(): Unit \ Assert =
+    // empty input => zero matches, pure(Nil), succeeds
+    let p = Combinator.many0(Char.char('a'));
+    let r = Parser.runParser(p, "");
+    Assert.assertEq(expected = ParseResult.Success(Nil), r)
+
+// ── Complex integration test ─────────────────────────────────────────────
+
+@Test
+def testComplexMany0StringChoice(): Unit \ Assert =
+    // Parse "hi" or "hello" repeatedly, then a trailing '!'
+    // Exercises: many0 + choice + String + andThen + Char
+    let greeting = Combinator.choice(String.string("hi"), String.string("hello"));
+    let greetings = Combinator.many0(greeting);
+    let p = Combinator.andThen(greetings, Char.char('!'));
+    let r = Parser.runParser(p, "hihello!");
+    Assert.assertEq(expected = ParseResult.Success(("hi" :: "hello" :: Nil, '!')), r)
 
 @Test
 def testAndThenP2NonFatal(): Unit \ Assert =

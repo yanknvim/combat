@@ -1,3 +1,3 @@
-// The main entry point.
 def main(): Unit \ IO =
-    println("Hello World!")
+    let l = 'a' :: 'b' :: 'c' :: Nil;
+    println(List.toString(l))
