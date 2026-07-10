@@ -1,0 +1,12 @@
+# Flix
+*.fpkg
+*.jar
+.GITHUB_TOKEN
+artifact/
+build/
+lib/
+crash_report_*.txt
+
+# Nix
+result
+.direnv
