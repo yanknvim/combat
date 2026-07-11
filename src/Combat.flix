@@ -91,11 +91,11 @@ mod Combat {
 
         pub def whitespaces0(): Parser[String] =
             many0(whitespace())
-            |> map(List.toString)
+            |> map(chars -> List.map(Char.toString, chars) |> List.join(""))
 
         pub def whitespaces1(): Parser[String] =
             many1(whitespace())
-            |> map(List.toString)
+            |> map(chars -> List.map(Char.toString, chars) |> List.join(""))
     }
 
     mod Combinator {
@@ -121,6 +121,12 @@ mod Combat {
             let (_, s1) = p1(input);
             let (r2, s2) = p2(s1);
             (r2, s2)
+        }
+
+        pub def thenDiscard(p2: Parser[b], p1: Parser[a]): Parser[a] = input -> {
+            let (r1, s1) = p1(input);
+            let (_, s2) = p2(s1);
+            (r1, s2)
         }
 
         pub def anyOf(ps: List[Parser[a]]): Parser[a] = input -> match ps {

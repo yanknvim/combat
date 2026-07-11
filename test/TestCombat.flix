@@ -422,12 +422,14 @@ def testWhitespaceNewline(): Unit \ Assert =
 
 @Test
 def testWhitespaceNonWhitespaceFails(): Unit \ Assert =
-    // non-whitespace character => non-fatal failure, last alternative's error
+    // non-whitespace character => anyOf falls through all alternatives,
+    // discarding intermediate errors, leaving only the last one's error.
     let r = Combat.runParser(Char.whitespace(), "abc");
     match r {
         case ParseResult.Failure(s) =>
-            // last alternative in anyOf is char('\n'), actual is 'a'
-            Assert.assertTrue(Set.memberOf(ParseError.UnexpectedChar('\n', 'a'), s))
+            // last alternative is char('\n'); anyOf discards errors from ' ', '\t', '\r'
+            Assert.assertTrue(Set.memberOf(ParseError.UnexpectedChar('\n', 'a'), s));
+            Assert.assertEq(expected = 1, Set.size(s))
         case ParseResult.Success(_) => Assert.assertTrue(false)
     }
 
@@ -435,6 +437,117 @@ def testWhitespaceNonWhitespaceFails(): Unit \ Assert =
 def testWhitespaceEmptyFatal(): Unit \ Assert =
     // empty input => fatal EmptyString from anyOf's alternatives
     let r = Combat.runParser(Char.whitespace(), "");
+    match r {
+        case ParseResult.Failure(_) => Assert.assertTrue(true)
+        case ParseResult.Success(_) => Assert.assertTrue(false)
+    }
+
+// ── Combat.Combinator.thenDiscard tests ─────────────────────────────────
+
+@Test
+def testThenDiscardBothOk(): Unit \ Assert =
+    // p1's result kept, p2 executed and consumed
+    let p = Char.char('a') |> Combinator.thenDiscard(Char.char('b'));
+    let r = Combat.runParser(p, "abc");
+    Assert.assertEq(expected = ParseResult.Success('a'), r)
+
+@Test
+def testThenDiscardP1Fails(): Unit \ Assert =
+    // p1 fails (non-fatal) => p2 still runs (consuming "bc") but overall Failure
+    let p = Char.char('a') |> Combinator.thenDiscard(Char.char('b'));
+    let r = Combat.runParser(p, "xbc");
+    match r {
+        case ParseResult.Failure(s) =>
+            // only p1's error should be collected (p2 succeeds)
+            Assert.assertTrue(Set.memberOf(ParseError.UnexpectedChar('a', 'x'), s));
+            Assert.assertEq(expected = 1, Set.size(s))
+        case ParseResult.Success(_) => Assert.assertTrue(false)
+    }
+
+@Test
+def testThenDiscardP2Fails(): Unit \ Assert =
+    // p1 succeeds, p2 fails (non-fatal) => overall Failure
+    let p = Char.char('a') |> Combinator.thenDiscard(Char.char('b'));
+    let r = Combat.runParser(p, "axc");
+    match r {
+        case ParseResult.Failure(s) =>
+            // only p2's error should be collected
+            Assert.assertTrue(Set.memberOf(ParseError.UnexpectedChar('b', 'x'), s));
+            Assert.assertEq(expected = 1, Set.size(s))
+        case ParseResult.Success(_) => Assert.assertTrue(false)
+    }
+
+@Test
+def testThenDiscardP1Fatal(): Unit \ Assert =
+    let p = Char.anyChar() |> Combinator.thenDiscard(Char.char('b'));
+    let r = Combat.runParser(p, "");
+    match r {
+        case ParseResult.Failure(_) => Assert.assertTrue(true)
+        case ParseResult.Success(_) => Assert.assertTrue(false)
+    }
+
+@Test
+def testThenDiscardP2Fatal(): Unit \ Assert =
+    let p = Char.char('a') |> Combinator.thenDiscard(Char.anyChar());
+    let r = Combat.runParser(p, "a");
+    match r {
+        case ParseResult.Failure(_) => Assert.assertTrue(true)
+        case ParseResult.Success(_) => Assert.assertTrue(false)
+    }
+
+@Test
+def testThenDiscardInputConsumed(): Unit \ Assert =
+    // both match, input consumed by both
+    let p = String.string("hi") |> Combinator.thenDiscard(Char.char('!'));
+    let r = Combat.runParser(p, "hi!rest");
+    Assert.assertEq(expected = ParseResult.Success("hi"), r)
+
+// ── Combat.String.whitespaces0 / whitespaces1 tests ─────────────────────
+
+@Test
+def testWhitespaces0Zero(): Unit \ Assert =
+    // zero whitespace chars => success with empty string
+    let r = Combat.runParser(String.whitespaces0(), "abc");
+    Assert.assertEq(expected = ParseResult.Success(""), r)
+
+@Test
+def testWhitespaces0Multiple(): Unit \ Assert =
+    // multiple whitespace chars consumed, then stops at 'a'
+    let r = Combat.runParser(String.whitespaces0(), "  \t\na");
+    Assert.assertEq(expected = ParseResult.Success("  \t\n"), r)
+
+@Test
+def testWhitespaces0Empty(): Unit \ Assert =
+    let r = Combat.runParser(String.whitespaces0(), "");
+    Assert.assertEq(expected = ParseResult.Success(""), r)
+
+@Test
+def testWhitespaces1Single(): Unit \ Assert =
+    let r = Combat.runParser(String.whitespaces1(), " xyz");
+    Assert.assertEq(expected = ParseResult.Success(" "), r)
+
+@Test
+def testWhitespaces1Multiple(): Unit \ Assert =
+    let r = Combat.runParser(String.whitespaces1(), "\t\r\nabc");
+    Assert.assertEq(expected = ParseResult.Success("\t\r\n"), r)
+
+@Test
+def testWhitespaces1ZeroFails(): Unit \ Assert =
+    // zero matches => many1's first p fails; anyOf discards intermediate
+    // errors, leaving only the last alternative's error.
+    let r = Combat.runParser(String.whitespaces1(), "abc");
+    match r {
+        case ParseResult.Failure(s) =>
+            // last alternative inside whitespace() is char('\n')
+            Assert.assertTrue(Set.memberOf(ParseError.UnexpectedChar('\n', 'a'), s));
+            Assert.assertEq(expected = 1, Set.size(s))
+        case ParseResult.Success(_) => Assert.assertTrue(false)
+    }
+
+@Test
+def testWhitespaces1EmptyFatal(): Unit \ Assert =
+    // empty input => char(' ') inside whitespace() fatals on empty string
+    let r = Combat.runParser(String.whitespaces1(), "");
     match r {
         case ParseResult.Failure(_) => Assert.assertTrue(true)
         case ParseResult.Success(_) => Assert.assertTrue(false)
