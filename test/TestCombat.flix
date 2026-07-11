@@ -300,3 +300,100 @@ def testMany1EmptyInput(): Unit \ Assert =
         case ParseResult.Failure(_) => Assert.assertTrue(true)
         case ParseResult.Success(_)  => Assert.assertTrue(false)
     }
+
+// ── Combat.Combinator.anyOf tests ───────────────────────────────────────
+
+@Test
+def testAnyOfFirstSucceeds(): Unit \ Assert =
+    let p = Combinator.anyOf(Char.char('a') :: Char.char('b') :: Nil);
+    let r = Combat.runParser(p, "abc");
+    Assert.assertEq(expected = ParseResult.Success('a'), r)
+
+@Test
+def testAnyOfSecondSucceeds(): Unit \ Assert =
+    // first fails (non-fatal), second succeeds
+    let p = Combinator.anyOf(Char.char('a') :: Char.char('b') :: Nil);
+    let r = Combat.runParser(p, "bcd");
+    Assert.assertEq(expected = ParseResult.Success('b'), r)
+
+@Test
+def testAnyOfAllFail(): Unit \ Assert =
+    // all fail => last parser's error propagates
+    let p = Combinator.anyOf(Char.char('a') :: Char.char('b') :: Nil);
+    let r = Combat.runParser(p, "xyz");
+    match r {
+        case ParseResult.Failure(s) =>
+            // last parser was char('b'), so error is UnexpectedChar('b', 'x')
+            Assert.assertTrue(Set.memberOf(ParseError.UnexpectedChar('b', 'x'), s))
+        case ParseResult.Success(_)  => Assert.assertTrue(false)
+    }
+
+@Test
+def testAnyOfEmptyList(): Unit \ Assert =
+    let p = Combinator.anyOf(Nil);
+    let r = Combat.runParser(p, "abc");
+    match r {
+        case ParseResult.Failure(s) =>
+            Assert.assertTrue(Set.memberOf(ParseError.EmptyChoice, s))
+        case ParseResult.Success(_)  => Assert.assertTrue(false)
+    }
+
+@Test
+def testAnyOfFatalFallback(): Unit \ Assert =
+    // first parser fatals on empty input, falls back to second which succeeds
+    let p = Combinator.anyOf(Char.anyChar() :: Char.char('b') :: Nil);
+    let r = Combat.runParser(p, "bcd");
+    Assert.assertEq(expected = ParseResult.Success('b'), r)
+
+@Test
+def testAnyOfThreeParsers(): Unit \ Assert =
+    // 3 parsers, third succeeds
+    let p = Combinator.anyOf(Char.char('a') :: Char.char('b') :: Char.char('c') :: Nil);
+    let r = Combat.runParser(p, "ccc");
+    Assert.assertEq(expected = ParseResult.Success('c'), r)
+
+@Test
+def testAnyOfLastFatal(): Unit \ Assert =
+    // all fail, last one fatals => Failure with the last error
+    let p = Combinator.anyOf(Char.char('a') :: Char.char('b') :: Char.anyChar() :: Nil);
+    let r = Combat.runParser(p, "");
+    match r {
+        case ParseResult.Failure(_) => Assert.assertTrue(true)
+        case ParseResult.Success(_)  => Assert.assertTrue(false)
+    }
+
+// ── Complex multiple non-fatal error recovery tests ─────────────────────
+
+@Test
+def testComplexChainFourNonFatalErrors(): Unit \ Assert =
+    // A chain of four char parsers, each mis-matching on a different input char.
+    // All errors are non-fatal and should be collected in the Failure set.
+    let p = Char.char('a')
+        |> Combinator.andThen(Char.char('b'))
+        |> Combinator.andThen(Char.char('c'))
+        |> Combinator.andThen(Char.char('d'));
+    let r = Combat.runParser(p, "wxyz");
+    match r {
+        case ParseResult.Failure(s) =>
+            Assert.assertTrue(Set.memberOf(ParseError.UnexpectedChar('a', 'w'), s));
+            Assert.assertTrue(Set.memberOf(ParseError.UnexpectedChar('b', 'x'), s));
+            Assert.assertTrue(Set.memberOf(ParseError.UnexpectedChar('c', 'y'), s));
+            Assert.assertTrue(Set.memberOf(ParseError.UnexpectedChar('d', 'z'), s))
+        case ParseResult.Success(_) => Assert.assertTrue(false)
+    }
+
+@Test
+def testComplexMixedErrorsCollected(): Unit \ Assert =
+    // String mismatch + char mismatch + final char mismatch.
+    // All non-fatal raises should accumulate across the andThen chain.
+    let p = String.string("ab")
+        |> Combinator.discardThen(Char.char('c'))
+        |> Combinator.andThen(Char.char('d'));
+    let r = Combat.runParser(p, "xbzw");
+    match r {
+        case ParseResult.Failure(s) =>
+            Assert.assertTrue(Set.memberOf(ParseError.UnexpectedString("ab", "xb"), s));
+            Assert.assertTrue(Set.memberOf(ParseError.UnexpectedChar('c', 'z'), s));
+            Assert.assertTrue(Set.memberOf(ParseError.UnexpectedChar('d', 'w'), s))
+        case ParseResult.Success(_) => Assert.assertTrue(false)
+    }

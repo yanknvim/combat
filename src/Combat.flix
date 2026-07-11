@@ -3,6 +3,7 @@ mod Combat {
 
     pub enum ParseError with Eq, Order, ToString {
         case EmptyString
+        case EmptyChoice
         case UnexpectedChar(Char, Char) // expected, actual
         case UnexpectedString(String, String)
     }
@@ -106,6 +107,17 @@ mod Combat {
             let (_, s1) = p1(input);
             let (r2, s2) = p2(s1);
             (r2, s2)
+        }
+
+        pub def anyOf(ps: List[Parser[a]]): Parser[a] = input -> match ps {
+            case Nil => ParseEff.raiseFatal(ParseError.EmptyChoice)
+            case p :: Nil => p(input)
+            case p :: rest => run {
+                p(input)
+            } with handler ParseEff {
+                def raise(_err, _resume) = anyOf(rest)(input)
+                def raiseFatal(_err, _resume) = anyOf(rest)(input)
+            }
         }
 
         pub def many0(p: Parser[a]): Parser[List[a]] = input -> eidentity(
