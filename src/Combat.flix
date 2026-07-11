@@ -43,6 +43,7 @@ mod Combat {
         }
 
     mod Char {
+        use Combat.Combinator.anyOf
         use Combat.{Parser, ParseError, ParseEff}
 
         pub def anyChar(): Parser[Char] = input -> {
@@ -67,10 +68,15 @@ mod Combat {
                 }
             }
         }
+
+        pub def whitespace(): Parser[Char] =
+            anyOf(List#{char(' '), char('\t'), char('\r'), char('\n')})
     }
 
     mod String {
-        use Combat.{Parser, ParseError, ParseEff}
+        use Combat.{map, Parser, ParseError, ParseEff}
+        use Combat.Char.whitespace
+        use Combat.Combinator.{many0, many1};
 
         pub def string(s: String): Parser[String] = input -> {
             if (String.isEmpty(input)) {
@@ -82,6 +88,14 @@ mod Combat {
                 (s, String.dropLeft(String.length(s), input))
             }
         }
+
+        pub def whitespaces0(): Parser[String] =
+            many0(whitespace())
+            |> map(List.toString)
+
+        pub def whitespaces1(): Parser[String] =
+            many1(whitespace())
+            |> map(List.toString)
     }
 
     mod Combinator {

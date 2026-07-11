@@ -397,3 +397,45 @@ def testComplexMixedErrorsCollected(): Unit \ Assert =
             Assert.assertTrue(Set.memberOf(ParseError.UnexpectedChar('d', 'w'), s))
         case ParseResult.Success(_) => Assert.assertTrue(false)
     }
+
+// ── Combat.Char.whitespace tests ────────────────────────────────────────
+
+@Test
+def testWhitespaceSpace(): Unit \ Assert =
+    let r = Combat.runParser(Char.whitespace(), " xyz");
+    Assert.assertEq(expected = ParseResult.Success(' '), r)
+
+@Test
+def testWhitespaceTab(): Unit \ Assert =
+    let r = Combat.runParser(Char.whitespace(), "\txyz");
+    Assert.assertEq(expected = ParseResult.Success('\t'), r)
+
+@Test
+def testWhitespaceCarriageReturn(): Unit \ Assert =
+    let r = Combat.runParser(Char.whitespace(), "\rxyz");
+    Assert.assertEq(expected = ParseResult.Success('\r'), r)
+
+@Test
+def testWhitespaceNewline(): Unit \ Assert =
+    let r = Combat.runParser(Char.whitespace(), "\nxyz");
+    Assert.assertEq(expected = ParseResult.Success('\n'), r)
+
+@Test
+def testWhitespaceNonWhitespaceFails(): Unit \ Assert =
+    // non-whitespace character => non-fatal failure, last alternative's error
+    let r = Combat.runParser(Char.whitespace(), "abc");
+    match r {
+        case ParseResult.Failure(s) =>
+            // last alternative in anyOf is char('\n'), actual is 'a'
+            Assert.assertTrue(Set.memberOf(ParseError.UnexpectedChar('\n', 'a'), s))
+        case ParseResult.Success(_) => Assert.assertTrue(false)
+    }
+
+@Test
+def testWhitespaceEmptyFatal(): Unit \ Assert =
+    // empty input => fatal EmptyString from anyOf's alternatives
+    let r = Combat.runParser(Char.whitespace(), "");
+    match r {
+        case ParseResult.Failure(_) => Assert.assertTrue(true)
+        case ParseResult.Success(_) => Assert.assertTrue(false)
+    }
