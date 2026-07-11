@@ -17,6 +17,13 @@ mod Combat {
         case Failure(Set[ParseError])
     }
 
+    pub def map(f: a -> b \ {}, p: Parser[a]): Parser[b] = input -> {
+        let (r, rest) = p(input);
+        (f(r), rest)
+    }
+
+    pub def pure(v: a): Parser[a] = input -> eidentity((v, input))
+
     pub def runParser(p: Parser[a], input: String): ParseResult[a] =
         region rc {
             let errors = Ref.fresh(rc, Set.empty());
@@ -76,13 +83,6 @@ mod Combat {
         }
     }
 
-    pub def map(f: a -> b \ {}, p: Parser[a]): Parser[b] = input -> {
-        let (r, rest) = p(input);
-        (f(r), rest)
-    }
-
-    pub def pure(v: a): Parser[a] = input -> eidentity((v, input))
-
     mod Combinator {
         use Combat.{Parser, ParseError, ParseEff}
 
@@ -96,10 +96,16 @@ mod Combat {
             }
         }
 
-        pub def andThen(p1: Parser[a], p2: Parser[b]): Parser[(a, b)] = input -> {
+        pub def andThen(p2: Parser[b], p1: Parser[a]): Parser[(a, b)] = input -> {
             let (r1, s1) = p1(input);
             let (r2, s2) = p2(s1);
             ((r1, r2), s2)
+        }
+
+        pub def discardThen(p2: Parser[b], p1: Parser[a]): Parser[b] = input -> {
+            let (_, s1) = p1(input);
+            let (r2, s2) = p2(s1);
+            (r2, s2)
         }
 
         pub def many0(p: Parser[a]): Parser[List[a]] = input -> eidentity(
@@ -112,5 +118,11 @@ mod Combat {
                 def raiseFatal(_err, _resume) = (Nil, input)
             }
         )
+
+        pub def many1(p: Parser[a]): Parser[List[a]] = input -> {
+            let (x, rest) = p(input);
+            let (xs, rest2) = many0(p)(rest);
+            (x ::xs, rest2)
+        }
     }
 }
