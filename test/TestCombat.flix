@@ -570,3 +570,77 @@ def testWhitespaces1EmptyFatal(): Unit \ Assert =
         case ParseResult.Failure(_) => Assert.assertTrue(true)
         case ParseResult.Success(_) => Assert.assertTrue(false)
     }
+
+// ── Combat.Char.satisfy tests ─────────────────────────────────────────
+
+@Test
+def testSatisfyOk(): Unit \ Assert =
+    let r = Combat.runParser(Char.satisfy(c -> c >= '0' and c <= '9'), "42");
+    Assert.assertEq(expected = ParseResult.Success('4'), r)
+
+@Test
+def testSatisfyFail(): Unit \ Assert =
+    let r = Combat.runParser(Char.satisfy(c -> c >= '0' and c <= '9'), "abc");
+    match r {
+        case ParseResult.Failure(s) =>
+            Assert.assertTrue(hasUnexpectedChar(s, 'a', 'a'))
+        case ParseResult.Success(_) => Assert.assertTrue(false)
+    }
+
+@Test
+def testSatisfyEmpty(): Unit \ Assert =
+    let r = Combat.runParser(Char.satisfy(c -> c == 'x'), "");
+    match r {
+        case ParseResult.Failure(_) => Assert.assertTrue(true)
+        case ParseResult.Success(_) => Assert.assertTrue(false)
+    }
+
+// ── Combat.Combinator.lookAhead tests ─────────────────────────────────
+
+@Test
+def testLookAheadOk(): Unit \ Assert =
+    // lookAhead does not consume input
+    let p = Combinator.lookAhead(Char.char('a'));
+    let r = Combat.runParser(p, "abc");
+    Assert.assertEq(expected = ParseResult.Success('a'), r)
+
+@Test
+def testLookAheadChained(): Unit \ Assert =
+    // after lookAhead, the same input is still available
+    let p = Combinator.lookAhead(Char.char('a')) |> Combinator.thenDiscard(Char.char('a'));
+    let r = Combat.runParser(p, "abc");
+    Assert.assertEq(expected = ParseResult.Success('a'), r)
+
+// ── Combat.Combinator.eof tests ───────────────────────────────────────
+
+@Test
+def testEofEmpty(): Unit \ Assert =
+    let r = Combat.runParser(Combinator.eof(), "");
+    Assert.assertEq(expected = ParseResult.Success(()), r)
+
+@Test
+def testEofNonEmpty(): Unit \ Assert =
+    let r = Combat.runParser(Combinator.eof(), "abc");
+    match r {
+        case ParseResult.Failure(s) =>
+            Assert.assertTrue(hasUnexpectedString(s, "EOF", "a"))
+        case ParseResult.Success(_) => Assert.assertTrue(false)
+    }
+
+@Test
+def testEofAfterParse(): Unit \ Assert =
+    // succeeds when input is fully consumed
+    let p = Char.char('a') |> Combinator.thenDiscard(Combinator.eof());
+    let r = Combat.runParser(p, "a");
+    Assert.assertEq(expected = ParseResult.Success('a'), r)
+
+@Test
+def testEofWithTrailing(): Unit \ Assert =
+    // fails when there is trailing input
+    let p = Char.char('a') |> Combinator.thenDiscard(Combinator.eof());
+    let r = Combat.runParser(p, "ab");
+    match r {
+        case ParseResult.Failure(s) =>
+            Assert.assertTrue(hasUnexpectedString(s, "EOF", "b"))
+        case ParseResult.Success(_) => Assert.assertTrue(false)
+    }

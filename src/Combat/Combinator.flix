@@ -1,6 +1,20 @@
 mod Combat.Combinator {
     use Combat.{Parser, ParseError, ParseEff}
 
+    pub def lookAhead(p: Parser[a]): Parser[a] = input -> {
+        let (result, _) = p(input);
+        (result, input)
+    }
+
+    pub def eof(): Parser[Unit] = input -> {
+        if (String.isEmpty(input#text)) {
+            ((), input)
+        } else {
+            let actual = String.takeLeft(1, input#text);
+            ParseEff.raiseFatal(ParseError.UnexpectedString(input#offset, "EOF", actual))
+        }
+    }
+
     pub def choice(p1: Parser[a], p2: Parser[a]): Parser[a] = input -> {
         run {
             p1(input)
