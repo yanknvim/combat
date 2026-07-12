@@ -3,6 +3,24 @@ use Combat.Char
 use Combat.String
 use Combat.Combinator
 
+def hasUnexpectedChar(errs: Set[ParseError], expected: Char, actual: Char): Bool =
+    Set.exists(err -> match err {
+        case ParseError.UnexpectedChar(_, e, a) => e == expected and a == actual
+        case _ => false
+    }, errs)
+
+def hasUnexpectedString(errs: Set[ParseError], expected: String, actual: String): Bool =
+    Set.exists(err -> match err {
+        case ParseError.UnexpectedString(_, e, a) => e == expected and a == actual
+        case _ => false
+    }, errs)
+
+def hasEmptyString(errs: Set[ParseError]): Bool =
+    Set.exists(err -> match err {
+        case ParseError.EmptyString(_) => true
+        case _ => false
+    }, errs)
+
 @Test
 def testAnyCharOk(): Unit \ Assert =
     let r = Combat.runParser(Char.anyChar(), "abc");
@@ -22,7 +40,7 @@ def testCharMismatch(): Unit \ Assert =
     let r = Combat.runParser(Char.char('a'), "bc");
     match r {
         case ParseResult.Failure(s) =>
-            Assert.assertTrue(Set.memberOf(ParseError.UnexpectedChar('a', 'b'), s))
+            Assert.assertTrue(hasUnexpectedChar(s, 'a', 'b'))
         case ParseResult.Success(_)  => Assert.assertTrue(false)
     }
 
@@ -36,7 +54,7 @@ def testStringMismatch(): Unit \ Assert =
     let r = Combat.runParser(String.string("foo"), "barbaz");
     match r {
         case ParseResult.Failure(s) =>
-            Assert.assertTrue(Set.memberOf(ParseError.UnexpectedString("foo", "bar"), s))
+            Assert.assertTrue(hasUnexpectedString(s, "foo", "bar"))
         case ParseResult.Success(_)  => Assert.assertTrue(false)
     }
 
@@ -74,7 +92,7 @@ def testChoiceBothRaise(): Unit \ Assert =
     let r = Combat.runParser(p, "cd");
     match r {
         case ParseResult.Failure(s) =>
-            Assert.assertTrue(Set.memberOf(ParseError.UnexpectedChar('b', 'c'), s))
+            Assert.assertTrue(hasUnexpectedChar(s, 'b', 'c'))
         case ParseResult.Success(_)  => Assert.assertTrue(false)
     }
 
@@ -128,8 +146,8 @@ def testAndThenBothNonFatal(): Unit \ Assert =
     let r = Combat.runParser(p, "cd");
     match r {
         case ParseResult.Failure(s) =>
-            Assert.assertTrue(Set.memberOf(ParseError.UnexpectedChar('a', 'c'), s));
-            Assert.assertTrue(Set.memberOf(ParseError.UnexpectedChar('b', 'd'), s))
+            Assert.assertTrue(hasUnexpectedChar(s, 'a', 'c'));
+            Assert.assertTrue(hasUnexpectedChar(s, 'b', 'd'))
         case ParseResult.Success(_)  => Assert.assertTrue(false)
     }
 
@@ -147,7 +165,7 @@ def testMapFailurePropagates(): Unit \ Assert =
     let r = Combat.runParser(p, "abc");
     match r {
         case ParseResult.Failure(s) =>
-            Assert.assertTrue(Set.memberOf(ParseError.UnexpectedChar('z', 'a'), s))
+            Assert.assertTrue(hasUnexpectedChar(s, 'z', 'a'))
         case ParseResult.Success(_)  => Assert.assertTrue(false)
     }
 
@@ -206,7 +224,7 @@ def testAndThenP2NonFatal(): Unit \ Assert =
     let r = Combat.runParser(p, "ac");
     match r {
         case ParseResult.Failure(s) =>
-            Assert.assertTrue(Set.memberOf(ParseError.UnexpectedChar('b', 'c'), s))
+            Assert.assertTrue(hasUnexpectedChar(s, 'b', 'c'))
         case ParseResult.Success(_)  => Assert.assertTrue(false)
     }
 
@@ -226,7 +244,7 @@ def testDiscardThenP1Fails(): Unit \ Assert =
     let r = Combat.runParser(p, "xbc");
     match r {
         case ParseResult.Failure(s) =>
-            Assert.assertTrue(Set.memberOf(ParseError.UnexpectedChar('a', 'x'), s))
+            Assert.assertTrue(hasUnexpectedChar(s, 'a', 'x'))
         case ParseResult.Success(_)  => Assert.assertTrue(false)
     }
 
@@ -237,7 +255,7 @@ def testDiscardThenP2Fails(): Unit \ Assert =
     let r = Combat.runParser(p, "axc");
     match r {
         case ParseResult.Failure(s) =>
-            Assert.assertTrue(Set.memberOf(ParseError.UnexpectedChar('b', 'x'), s))
+            Assert.assertTrue(hasUnexpectedChar(s, 'b', 'x'))
         case ParseResult.Success(_)  => Assert.assertTrue(false)
     }
 
@@ -287,7 +305,7 @@ def testMany1ZeroMatches(): Unit \ Assert =
     let r = Combat.runParser(p, "bbb");
     match r {
         case ParseResult.Failure(s) =>
-            Assert.assertTrue(Set.memberOf(ParseError.UnexpectedChar('a', 'b'), s))
+            Assert.assertTrue(hasUnexpectedChar(s, 'a', 'b'))
         case ParseResult.Success(_)  => Assert.assertTrue(false)
     }
 
@@ -324,7 +342,7 @@ def testAnyOfAllFail(): Unit \ Assert =
     match r {
         case ParseResult.Failure(s) =>
             // last parser was char('b'), so error is UnexpectedChar('b', 'x')
-            Assert.assertTrue(Set.memberOf(ParseError.UnexpectedChar('b', 'x'), s))
+            Assert.assertTrue(hasUnexpectedChar(s, 'b', 'x'))
         case ParseResult.Success(_)  => Assert.assertTrue(false)
     }
 
@@ -375,10 +393,10 @@ def testComplexChainFourNonFatalErrors(): Unit \ Assert =
     let r = Combat.runParser(p, "wxyz");
     match r {
         case ParseResult.Failure(s) =>
-            Assert.assertTrue(Set.memberOf(ParseError.UnexpectedChar('a', 'w'), s));
-            Assert.assertTrue(Set.memberOf(ParseError.UnexpectedChar('b', 'x'), s));
-            Assert.assertTrue(Set.memberOf(ParseError.UnexpectedChar('c', 'y'), s));
-            Assert.assertTrue(Set.memberOf(ParseError.UnexpectedChar('d', 'z'), s))
+            Assert.assertTrue(hasUnexpectedChar(s, 'a', 'w'));
+            Assert.assertTrue(hasUnexpectedChar(s, 'b', 'x'));
+            Assert.assertTrue(hasUnexpectedChar(s, 'c', 'y'));
+            Assert.assertTrue(hasUnexpectedChar(s, 'd', 'z'))
         case ParseResult.Success(_) => Assert.assertTrue(false)
     }
 
@@ -392,9 +410,9 @@ def testComplexMixedErrorsCollected(): Unit \ Assert =
     let r = Combat.runParser(p, "xbzw");
     match r {
         case ParseResult.Failure(s) =>
-            Assert.assertTrue(Set.memberOf(ParseError.UnexpectedString("ab", "xb"), s));
-            Assert.assertTrue(Set.memberOf(ParseError.UnexpectedChar('c', 'z'), s));
-            Assert.assertTrue(Set.memberOf(ParseError.UnexpectedChar('d', 'w'), s))
+            Assert.assertTrue(hasUnexpectedString(s, "ab", "xb"));
+            Assert.assertTrue(hasUnexpectedChar(s, 'c', 'z'));
+            Assert.assertTrue(hasUnexpectedChar(s, 'd', 'w'))
         case ParseResult.Success(_) => Assert.assertTrue(false)
     }
 
@@ -428,7 +446,7 @@ def testWhitespaceNonWhitespaceFails(): Unit \ Assert =
     match r {
         case ParseResult.Failure(s) =>
             // last alternative is char('\n'); anyOf discards errors from ' ', '\t', '\r'
-            Assert.assertTrue(Set.memberOf(ParseError.UnexpectedChar('\n', 'a'), s));
+            Assert.assertTrue(hasUnexpectedChar(s, '\n', 'a'));
             Assert.assertEq(expected = 1, Set.size(s))
         case ParseResult.Success(_) => Assert.assertTrue(false)
     }
@@ -459,7 +477,7 @@ def testThenDiscardP1Fails(): Unit \ Assert =
     match r {
         case ParseResult.Failure(s) =>
             // only p1's error should be collected (p2 succeeds)
-            Assert.assertTrue(Set.memberOf(ParseError.UnexpectedChar('a', 'x'), s));
+            Assert.assertTrue(hasUnexpectedChar(s, 'a', 'x'));
             Assert.assertEq(expected = 1, Set.size(s))
         case ParseResult.Success(_) => Assert.assertTrue(false)
     }
@@ -472,7 +490,7 @@ def testThenDiscardP2Fails(): Unit \ Assert =
     match r {
         case ParseResult.Failure(s) =>
             // only p2's error should be collected
-            Assert.assertTrue(Set.memberOf(ParseError.UnexpectedChar('b', 'x'), s));
+            Assert.assertTrue(hasUnexpectedChar(s, 'b', 'x'));
             Assert.assertEq(expected = 1, Set.size(s))
         case ParseResult.Success(_) => Assert.assertTrue(false)
     }
@@ -539,7 +557,7 @@ def testWhitespaces1ZeroFails(): Unit \ Assert =
     match r {
         case ParseResult.Failure(s) =>
             // last alternative inside whitespace() is char('\n')
-            Assert.assertTrue(Set.memberOf(ParseError.UnexpectedChar('\n', 'a'), s));
+            Assert.assertTrue(hasUnexpectedChar(s, '\n', 'a'));
             Assert.assertEq(expected = 1, Set.size(s))
         case ParseResult.Success(_) => Assert.assertTrue(false)
     }

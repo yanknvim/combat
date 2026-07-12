@@ -1,11 +1,13 @@
 mod Combat {
-    pub type alias Parser[a] = String -> (a, String) \ ParseEff
+    pub type alias Input = { text = String, offset = Int32 }
+
+    pub type alias Parser[a] = Input -> (a, Input) \ ParseEff
 
     pub enum ParseError with Eq, Order, ToString {
-        case EmptyString
+        case EmptyString(Int32)
         case EmptyChoice
-        case UnexpectedChar(Char, Char) // expected, actual
-        case UnexpectedString(String, String)
+        case UnexpectedChar(Int32, Char, Char) // offset, expected, actual
+        case UnexpectedString(Int32, String, String) // offset, expected, actual
     }
 
     pub eff ParseEff {
@@ -29,7 +31,7 @@ mod Combat {
         region rc {
             let errors = Ref.fresh(rc, Set.empty());
             run {
-                let (a, _rest) = p(input);
+                let (a, _rest) = p({ text = input, offset = 0 });
                 let collected = Ref.get(errors);
                 if (Set.isEmpty(collected)) ParseResult.Success(a)
                 else ParseResult.Failure(collected)
@@ -47,24 +49,24 @@ mod Combat {
         use Combat.{Parser, ParseError, ParseEff}
 
         pub def anyChar(): Parser[Char] = input -> {
-            if (String.isEmpty(input)) {
-                ParseEff.raiseFatal(ParseError.EmptyString)
+            if (String.isEmpty(input#text)) {
+                ParseEff.raiseFatal(ParseError.EmptyString(input#offset))
             } else {
-                let first = String.charAt(0, input);
-                (first, String.dropLeft(1, input))
+                let first = String.charAt(0, input#text);
+                (first, { text = String.dropLeft(1, input#text), offset = input#offset + 1 })
             }
         }
 
         pub def char(c: Char): Parser[Char] = input -> {
-            if (String.isEmpty(input)) {
-                ParseEff.raiseFatal(ParseError.EmptyString)
+            if (String.isEmpty(input#text)) {
+                ParseEff.raiseFatal(ParseError.EmptyString(input#offset))
             } else {
-                let first = String.charAt(0, input);
+                let first = String.charAt(0, input#text);
                 if (first == c) {
-                    (first, String.dropLeft(1, input))
+                    (first, { text = String.dropLeft(1, input#text), offset = input#offset + 1 })
                 } else {
-                    ParseEff.raise(ParseError.UnexpectedChar(c, first));
-                    (first, String.dropLeft(1, input))
+                    ParseEff.raise(ParseError.UnexpectedChar(input#offset, c, first));
+                    (first, { text = String.dropLeft(1, input#text), offset = input#offset + 1 })
                 }
             }
         }
@@ -79,13 +81,16 @@ mod Combat {
         use Combat.Combinator.{many0, many1};
 
         pub def string(s: String): Parser[String] = input -> {
-            if (String.isEmpty(input)) {
-                ParseEff.raiseFatal(ParseError.EmptyString)
-            } else if (String.startsWith({ prefix = s }, input)) {
-                (s, String.dropLeft(String.length(s), input))
+            if (String.isEmpty(input#text)) {
+                ParseEff.raiseFatal(ParseError.EmptyString(input#offset))
+            } else if (String.startsWith({ prefix = s }, input#text)) {
+                let len = String.length(s);
+                (s, { text = String.dropLeft(len, input#text), offset = input#offset + len })
             } else {
-                ParseEff.raise(ParseError.UnexpectedString(s, String.sliceLeft({ end = String.length(s) }, input)));
-                (s, String.dropLeft(String.length(s), input))
+                let len = String.length(s);
+                let actual = String.sliceLeft({ end = len }, input#text);
+                ParseEff.raise(ParseError.UnexpectedString(input#offset, s, actual));
+                (s, { text = String.dropLeft(len, input#text), offset = input#offset + len })
             }
         }
 
