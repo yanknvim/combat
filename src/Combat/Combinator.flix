@@ -15,6 +15,47 @@ mod Combat.Combinator {
         }
     }
 
+    def tryParser(p: Parser[a], input: Combat.Input): Option[(a, Combat.Input)] = {
+        run {
+            let (r, rest) = p(input);
+            Some((r, rest))
+        } with handler ParseEff {
+            def raise(_, _)     = None
+            def raiseFatal(_, _) = None
+        }
+    }
+
+    pub def flatMap(f: a -> Parser[b], p: Parser[a]): Parser[b] = input -> {
+        let (a, rest) = p(input);
+        f(a)(rest)
+    }
+
+    pub def optional(p: Parser[a]): Parser[Option[a]] =
+        choice(Combat.map(x -> Some(x), p), Combat.pure(None))
+
+    pub def sepBy1(p: Parser[a], sep: Parser[b]): Parser[List[a]] = input -> {
+        let (first, rest1) = p(input);
+        let (restItems, rest2) = many0(discardThen(p, sep))(rest1);
+        (first :: restItems, rest2)
+    }
+
+    pub def sepBy(p: Parser[a], sep: Parser[b]): Parser[List[a]] = input -> {
+        match tryParser(p, input) {
+            case None => (Nil, input)
+            case Some((first, rest1)) => {
+                let (restItems, rest2) = many0(discardThen(p, sep))(rest1);
+                (first :: restItems, rest2)
+            }
+        }
+    }
+
+    pub def between(open: Parser[a], close: Parser[b], p: Parser[c]): Parser[c] = input -> {
+        let (_, s1) = open(input);
+        let (r, s2) = p(s1);
+        let (_, s3) = close(s2);
+        (r, s3)
+    }
+
     pub def choice(p1: Parser[a], p2: Parser[a]): Parser[a] = input -> {
         run {
             p1(input)

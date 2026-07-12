@@ -38,4 +38,13 @@ mod Combat.Char {
 
     pub def whitespace(): Parser[Char] =
         anyOf(List#{char(' '), char('\t'), char('\r'), char('\n')})
+
+    pub def digit(): Parser[Char] =
+        satisfy(c -> Char.isAsciiDigit(c))
+
+    pub def letter(): Parser[Char] =
+        satisfy(c -> Char.isLetter(c))
+
+    pub def letterOrDigit(): Parser[Char] =
+        satisfy(c -> Char.isLetterOrDigit(c))
 }

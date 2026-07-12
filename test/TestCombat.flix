@@ -2,6 +2,7 @@ use Combat.{ParseResult, ParseError}
 use Combat.Char
 use Combat.String
 use Combat.Combinator
+use Combat.Literal
 
 def hasUnexpectedChar(errs: Set[ParseError], expected: Char, actual: Char): Bool =
     Set.exists(err -> match err {
@@ -642,5 +643,275 @@ def testEofWithTrailing(): Unit \ Assert =
     match r {
         case ParseResult.Failure(s) =>
             Assert.assertTrue(hasUnexpectedString(s, "EOF", "b"))
+        case ParseResult.Success(_) => Assert.assertTrue(false)
+    }
+
+// ── Combat.Char.digit / letter / letterOrDigit tests ────────────────────
+
+@Test
+def testDigitOk(): Unit \ Assert =
+    let r = Combat.runParser(Char.digit(), "42");
+    Assert.assertEq(expected = ParseResult.Success('4'), r)
+
+@Test
+def testDigitFail(): Unit \ Assert =
+    let r = Combat.runParser(Char.digit(), "abc");
+    match r {
+        case ParseResult.Failure(_) => Assert.assertTrue(true)
+        case ParseResult.Success(_) => Assert.assertTrue(false)
+    }
+
+@Test
+def testDigitEmpty(): Unit \ Assert =
+    let r = Combat.runParser(Char.digit(), "");
+    match r {
+        case ParseResult.Failure(_) => Assert.assertTrue(true)
+        case ParseResult.Success(_) => Assert.assertTrue(false)
+    }
+
+@Test
+def testLetterLower(): Unit \ Assert =
+    let r = Combat.runParser(Char.letter(), "abc");
+    Assert.assertEq(expected = ParseResult.Success('a'), r)
+
+@Test
+def testLetterUpper(): Unit \ Assert =
+    let r = Combat.runParser(Char.letter(), "ABC");
+    Assert.assertEq(expected = ParseResult.Success('A'), r)
+
+@Test
+def testLetterFail(): Unit \ Assert =
+    let r = Combat.runParser(Char.letter(), "123");
+    match r {
+        case ParseResult.Failure(_) => Assert.assertTrue(true)
+        case ParseResult.Success(_) => Assert.assertTrue(false)
+    }
+
+@Test
+def testLetterEmpty(): Unit \ Assert =
+    let r = Combat.runParser(Char.letter(), "");
+    match r {
+        case ParseResult.Failure(_) => Assert.assertTrue(true)
+        case ParseResult.Success(_) => Assert.assertTrue(false)
+    }
+
+@Test
+def testLetterOrDigitLetter(): Unit \ Assert =
+    let r = Combat.runParser(Char.letterOrDigit(), "abc");
+    Assert.assertEq(expected = ParseResult.Success('a'), r)
+
+@Test
+def testLetterOrDigitDigit(): Unit \ Assert =
+    let r = Combat.runParser(Char.letterOrDigit(), "42");
+    Assert.assertEq(expected = ParseResult.Success('4'), r)
+
+@Test
+def testLetterOrDigitFail(): Unit \ Assert =
+    let r = Combat.runParser(Char.letterOrDigit(), "!!!");
+    match r {
+        case ParseResult.Failure(_) => Assert.assertTrue(true)
+        case ParseResult.Success(_) => Assert.assertTrue(false)
+    }
+
+@Test
+def testLetterOrDigitEmpty(): Unit \ Assert =
+    let r = Combat.runParser(Char.letterOrDigit(), "");
+    match r {
+        case ParseResult.Failure(_) => Assert.assertTrue(true)
+        case ParseResult.Success(_) => Assert.assertTrue(false)
+    }
+
+// ── Combat.Combinator.between tests ─────────────────────────────────────
+
+@Test
+def testBetweenParens(): Unit \ Assert =
+    // between '(', ')', char('a') => 'a'
+    let p = Combinator.between(Char.char('('), Char.char(')'), Char.char('a'));
+    let r = Combat.runParser(p, "(a)");
+    Assert.assertEq(expected = ParseResult.Success('a'), r)
+
+@Test
+def testBetweenBraces(): Unit \ Assert =
+    // between '{', '}', digit() => '4'
+    let p = Combinator.between(Char.char('{'), Char.char('}'), Char.digit());
+    let r = Combat.runParser(p, "{4}");
+    Assert.assertEq(expected = ParseResult.Success('4'), r)
+
+@Test
+def testBetweenOpenFails(): Unit \ Assert =
+    // open mismatch => failure
+    let p = Combinator.between(Char.char('('), Char.char(')'), Char.char('a'));
+    let r = Combat.runParser(p, "[a]");
+    match r {
+        case ParseResult.Failure(s) =>
+            Assert.assertTrue(hasUnexpectedChar(s, '(', '['))
+        case ParseResult.Success(_) => Assert.assertTrue(false)
+    }
+
+@Test
+def testBetweenCloseFails(): Unit \ Assert =
+    // close mismatch => failure
+    let p = Combinator.between(Char.char('('), Char.char(')'), Char.char('a'));
+    let r = Combat.runParser(p, "(a]");
+    match r {
+        case ParseResult.Failure(s) =>
+            Assert.assertTrue(hasUnexpectedChar(s, ')', ']'))
+        case ParseResult.Success(_) => Assert.assertTrue(false)
+    }
+
+@Test
+def testBetweenInnerFails(): Unit \ Assert =
+    // inner mismatch => failure
+    let p = Combinator.between(Char.char('('), Char.char(')'), Char.char('a'));
+    let r = Combat.runParser(p, "(b)");
+    match r {
+        case ParseResult.Failure(s) =>
+            Assert.assertTrue(hasUnexpectedChar(s, 'a', 'b'))
+        case ParseResult.Success(_) => Assert.assertTrue(false)
+    }
+
+// ── Combat.Combinator.optional tests ────────────────────────────────────
+
+@Test
+def testOptionalSome(): Unit \ Assert =
+    let p = Combinator.optional(Char.char('a'));
+    let r = Combat.runParser(p, "abc");
+    Assert.assertEq(expected = ParseResult.Success(Some('a')), r)
+
+@Test
+def testOptionalNone(): Unit \ Assert =
+    let p = Combinator.optional(Char.char('a'));
+    let r = Combat.runParser(p, "xyz");
+    Assert.assertEq(expected = ParseResult.Success(None), r)
+
+@Test
+def testOptionalEmpty(): Unit \ Assert =
+    let p = Combinator.optional(Char.char('a'));
+    let r = Combat.runParser(p, "");
+    Assert.assertEq(expected = ParseResult.Success(None), r)
+
+// ── Combat.Combinator.flatMap tests ─────────────────────────────────────
+
+@Test
+def testFlatMapSimple(): Unit \ Assert =
+    // parse 'a', then choose next parser based on result
+    let p = Char.char('a') |> Combinator.flatMap(c -> Char.char(c));
+    let r = Combat.runParser(p, "aa");
+    Assert.assertEq(expected = ParseResult.Success('a'), r)
+
+@Test
+def testFlatMapDifferent(): Unit \ Assert =
+    // parse 'a', then expect 'b'
+    let p = Char.char('a') |> Combinator.flatMap(_ -> Char.char('b'));
+    let r = Combat.runParser(p, "ab");
+    Assert.assertEq(expected = ParseResult.Success('b'), r)
+
+@Test
+def testFlatMapFail(): Unit \ Assert =
+    let p = Char.char('a') |> Combinator.flatMap(_ -> Char.char('b'));
+    let r = Combat.runParser(p, "ac");
+    match r {
+        case ParseResult.Failure(s) =>
+            Assert.assertTrue(hasUnexpectedChar(s, 'b', 'c'))
+        case ParseResult.Success(_) => Assert.assertTrue(false)
+    }
+
+// ── Combat.Combinator.sepBy / sepBy1 tests ──────────────────────────────
+
+@Test
+def testSepBy1Two(): Unit \ Assert =
+    let p = Combinator.sepBy1(Char.digit(), Char.char(','));
+    let r = Combat.runParser(p, "1,2");
+    Assert.assertEq(expected = ParseResult.Success('1' :: '2' :: Nil), r)
+
+@Test
+def testSepBy1Three(): Unit \ Assert =
+    let p = Combinator.sepBy1(Char.digit(), Char.char(','));
+    let r = Combat.runParser(p, "1,2,3");
+    Assert.assertEq(expected = ParseResult.Success('1' :: '2' :: '3' :: Nil), r)
+
+@Test
+def testSepBy1Single(): Unit \ Assert =
+    let p = Combinator.sepBy1(Char.digit(), Char.char(','));
+    let r = Combat.runParser(p, "5");
+    Assert.assertEq(expected = ParseResult.Success('5' :: Nil), r)
+
+@Test
+def testSepBy1NoSep(): Unit \ Assert =
+    // sep not followed by another digit => stop after first digit
+    let p = Combinator.sepBy1(Char.digit(), Char.char(','));
+    let r = Combat.runParser(p, "5x");
+    Assert.assertEq(expected = ParseResult.Success('5' :: Nil), r)
+
+@Test
+def testSepBy1Empty(): Unit \ Assert =
+    let p = Combinator.sepBy1(Char.digit(), Char.char(','));
+    let r = Combat.runParser(p, "");
+    match r {
+        case ParseResult.Failure(_) => Assert.assertTrue(true)
+        case ParseResult.Success(_) => Assert.assertTrue(false)
+    }
+
+@Test
+def testSepByZero(): Unit \ Assert =
+    let p = Combinator.sepBy(Char.digit(), Char.char(','));
+    let r = Combat.runParser(p, "abc");
+    Assert.assertEq(expected = ParseResult.Success(Nil), r)
+
+@Test
+def testSepByTwo(): Unit \ Assert =
+    let p = Combinator.sepBy(Char.digit(), Char.char(','));
+    let r = Combat.runParser(p, "1,2");
+    Assert.assertEq(expected = ParseResult.Success('1' :: '2' :: Nil), r)
+
+@Test
+def testSepByEmpty(): Unit \ Assert =
+    let p = Combinator.sepBy(Char.digit(), Char.char(','));
+    let r = Combat.runParser(p, "");
+    Assert.assertEq(expected = ParseResult.Success(Nil), r)
+
+// ── Combat.Literal tests ────────────────────────────────────────────────
+
+@Test
+def testStringLiteralSimple(): Unit \ Assert =
+    let r = Combat.runParser(Literal.stringLiteral(), "\"hello\"");
+    Assert.assertEq(expected = ParseResult.Success("hello"), r)
+
+@Test
+def testStringLiteralEmpty(): Unit \ Assert =
+    let r = Combat.runParser(Literal.stringLiteral(), "\"\"");
+    Assert.assertEq(expected = ParseResult.Success(""), r)
+
+@Test
+def testStringLiteralUnclosed(): Unit \ Assert =
+    let r = Combat.runParser(Literal.stringLiteral(), "\"hello");
+    match r {
+        case ParseResult.Failure(_) => Assert.assertTrue(true)
+        case ParseResult.Success(_) => Assert.assertTrue(false)
+    }
+
+@Test
+def testIntegerSingle(): Unit \ Assert =
+    let r = Combat.runParser(Literal.integer(), "42");
+    Assert.assertEq(expected = ParseResult.Success(42), r)
+
+@Test
+def testIntegerMultiple(): Unit \ Assert =
+    let r = Combat.runParser(Literal.integer(), "12345");
+    Assert.assertEq(expected = ParseResult.Success(12345), r)
+
+@Test
+def testIntegerFail(): Unit \ Assert =
+    let r = Combat.runParser(Literal.integer(), "abc");
+    match r {
+        case ParseResult.Failure(_) => Assert.assertTrue(true)
+        case ParseResult.Success(_) => Assert.assertTrue(false)
+    }
+
+@Test
+def testIntegerEmpty(): Unit \ Assert =
+    let r = Combat.runParser(Literal.integer(), "");
+    match r {
+        case ParseResult.Failure(_) => Assert.assertTrue(true)
         case ParseResult.Success(_) => Assert.assertTrue(false)
     }
