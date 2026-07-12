@@ -1,4 +1,4 @@
-mod Combat.String {
+mod Combat.Str {
     use Combat.{map, Parser, ParseError, ParseEff}
     use Combat.Char.whitespace
     use Combat.Combinator.{many0, many1}

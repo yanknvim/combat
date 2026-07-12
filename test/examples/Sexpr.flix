@@ -3,7 +3,7 @@ mod Sexpr {
     use Combat.Char.{char, letterOrDigit}
     use Combat.Combinator.{choice, between, many1, sepBy, thenDiscard}
     use Combat.Literal.{integer, stringLiteral}
-    use Combat.String.whitespaces1
+    use Combat.Str.whitespaces1
 
     pub enum SExpr with Eq, ToString {
         case SInt(Int32)

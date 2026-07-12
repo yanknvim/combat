@@ -2,7 +2,7 @@ use Combat.{runParser, Parser, map, Input, ParseEff}
 use Combat.Char.{char}
 use Combat.Combinator.{choice, sepBy, thenDiscard, discardThen, andThen, between, anyOf}
 use Combat.Literal.{integer, stringLiteral}
-use Combat.String.{string, whitespaces0}
+use Combat.Str.{string, whitespaces0}
 use Combat.ParseResult
 
 pub enum Json with Eq, ToString {

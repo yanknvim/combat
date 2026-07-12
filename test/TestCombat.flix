@@ -1,6 +1,6 @@
 use Combat.{ParseResult, ParseError}
 use Combat.Char
-use Combat.String
+use Combat.Str
 use Combat.Combinator
 use Combat.Literal
 
@@ -47,12 +47,12 @@ def testCharMismatch(): Unit \ Assert =
 
 @Test
 def testStringOk(): Unit \ Assert =
-    let r = Combat.runParser(String.string("hello"), "hello world");
+    let r = Combat.runParser(Str.string("hello"), "hello world");
     Assert.assertEq(expected = ParseResult.Success("hello"), r)
 
 @Test
 def testStringMismatch(): Unit \ Assert =
-    let r = Combat.runParser(String.string("foo"), "barbaz");
+    let r = Combat.runParser(Str.string("foo"), "barbaz");
     match r {
         case ParseResult.Failure(s) =>
             Assert.assertTrue(hasUnexpectedString(s, "foo", "bar"))
@@ -100,7 +100,7 @@ def testChoiceBothRaise(): Unit \ Assert =
 @Test
 def testChoiceStringFallback(): Unit \ Assert =
     // p1 fails (non-fatal), falls back to p2 which succeeds
-    let p = Combinator.choice(String.string("foo"), String.string("bar"));
+    let p = Combinator.choice(Str.string("foo"), Str.string("bar"));
     let r = Combat.runParser(p, "bar");
     Assert.assertEq(expected = ParseResult.Success("bar"), r)
 
@@ -116,7 +116,7 @@ def testAndThenTwoChars(): Unit \ Assert =
 @Test
 def testAndThenStringAndChar(): Unit \ Assert =
     // string then char, both match
-    let p = String.string("hi") |> Combinator.andThen(Char.char('!'));
+    let p = Str.string("hi") |> Combinator.andThen(Char.char('!'));
     let r = Combat.runParser(p, "hi!");
     Assert.assertEq(expected = ParseResult.Success(("hi", '!')), r)
 
@@ -212,7 +212,7 @@ def testMany0EmptyInput(): Unit \ Assert =
 def testComplexMany0StringChoice(): Unit \ Assert =
     // Parse "hi" or "hello" repeatedly, then a trailing '!'
     // Exercises: many0 + choice + String + andThen + Char
-    let greeting = Combinator.choice(String.string("hi"), String.string("hello"));
+    let greeting = Combinator.choice(Str.string("hi"), Str.string("hello"));
     let greetings = Combinator.many0(greeting);
     let p = greetings |> Combinator.andThen(Char.char('!'));
     let r = Combat.runParser(p, "hihello!");
@@ -281,7 +281,7 @@ def testDiscardThenP2Fatal(): Unit \ Assert =
 @Test
 def testDiscardThenInputConsumed(): Unit \ Assert =
     // both match, input consumed by both
-    let p = String.string("hi") |> Combinator.discardThen(Char.char('!'));
+    let p = Str.string("hi") |> Combinator.discardThen(Char.char('!'));
     let r = Combat.runParser(p, "hi!rest");
     Assert.assertEq(expected = ParseResult.Success('!'), r)
 
@@ -405,7 +405,7 @@ def testComplexChainFourNonFatalErrors(): Unit \ Assert =
 def testComplexMixedErrorsCollected(): Unit \ Assert =
     // String mismatch + char mismatch + final char mismatch.
     // All non-fatal raises should accumulate across the andThen chain.
-    let p = String.string("ab")
+    let p = Str.string("ab")
         |> Combinator.discardThen(Char.char('c'))
         |> Combinator.andThen(Char.char('d'));
     let r = Combat.runParser(p, "xbzw");
@@ -517,44 +517,44 @@ def testThenDiscardP2Fatal(): Unit \ Assert =
 @Test
 def testThenDiscardInputConsumed(): Unit \ Assert =
     // both match, input consumed by both
-    let p = String.string("hi") |> Combinator.thenDiscard(Char.char('!'));
+    let p = Str.string("hi") |> Combinator.thenDiscard(Char.char('!'));
     let r = Combat.runParser(p, "hi!rest");
     Assert.assertEq(expected = ParseResult.Success("hi"), r)
 
-// ── Combat.String.whitespaces0 / whitespaces1 tests ─────────────────────
+// ── Combat.Str.whitespaces0 / whitespaces1 tests ─────────────────────
 
 @Test
 def testWhitespaces0Zero(): Unit \ Assert =
     // zero whitespace chars => success with empty string
-    let r = Combat.runParser(String.whitespaces0(), "abc");
+    let r = Combat.runParser(Str.whitespaces0(), "abc");
     Assert.assertEq(expected = ParseResult.Success(""), r)
 
 @Test
 def testWhitespaces0Multiple(): Unit \ Assert =
     // multiple whitespace chars consumed, then stops at 'a'
-    let r = Combat.runParser(String.whitespaces0(), "  \t\na");
+    let r = Combat.runParser(Str.whitespaces0(), "  \t\na");
     Assert.assertEq(expected = ParseResult.Success("  \t\n"), r)
 
 @Test
 def testWhitespaces0Empty(): Unit \ Assert =
-    let r = Combat.runParser(String.whitespaces0(), "");
+    let r = Combat.runParser(Str.whitespaces0(), "");
     Assert.assertEq(expected = ParseResult.Success(""), r)
 
 @Test
 def testWhitespaces1Single(): Unit \ Assert =
-    let r = Combat.runParser(String.whitespaces1(), " xyz");
+    let r = Combat.runParser(Str.whitespaces1(), " xyz");
     Assert.assertEq(expected = ParseResult.Success(" "), r)
 
 @Test
 def testWhitespaces1Multiple(): Unit \ Assert =
-    let r = Combat.runParser(String.whitespaces1(), "\t\r\nabc");
+    let r = Combat.runParser(Str.whitespaces1(), "\t\r\nabc");
     Assert.assertEq(expected = ParseResult.Success("\t\r\n"), r)
 
 @Test
 def testWhitespaces1ZeroFails(): Unit \ Assert =
     // zero matches => many1's first p fails; anyOf discards intermediate
     // errors, leaving only the last alternative's error.
-    let r = Combat.runParser(String.whitespaces1(), "abc");
+    let r = Combat.runParser(Str.whitespaces1(), "abc");
     match r {
         case ParseResult.Failure(s) =>
             // last alternative inside whitespace() is char('\n')
@@ -566,7 +566,7 @@ def testWhitespaces1ZeroFails(): Unit \ Assert =
 @Test
 def testWhitespaces1EmptyFatal(): Unit \ Assert =
     // empty input => char(' ') inside whitespace() fatals on empty string
-    let r = Combat.runParser(String.whitespaces1(), "");
+    let r = Combat.runParser(Str.whitespaces1(), "");
     match r {
         case ParseResult.Failure(_) => Assert.assertTrue(true)
         case ParseResult.Success(_) => Assert.assertTrue(false)
